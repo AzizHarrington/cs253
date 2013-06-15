@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<title>CS253 Blog</title>
+	</head>
+
+	<body>
+		<h1>CS253 Blog</h1>
+
+		{% for blog in blogs %}
+			<div class="blog">
+				<div class="blog-subject">{{blog.subject}}</div>
+				<hr>
+				<div class="blog-content"><pre>{{blog.content}}</pre></div>
+			</div>
+			<br>
+		{% endfor %}
+
+</html>
