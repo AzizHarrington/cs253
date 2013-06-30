@@ -41,11 +41,12 @@ def valid_year(year):
             return year
 
 ### html escaping ###
+#using jinja's auto escape instead.
 
-symbols = {'>':'&gt;', '<':'&lt;', '"':'&quot;', '&':'&amp;'}
+# symbols = {'>':'&gt;', '<':'&lt;', '"':'&quot;', '&':'&amp;'}
 
-def escape_html(s):
-    return s.replace('&', '&amp;').replace('>', '&gt;').replace('<', '&lt;').replace('"', '&quot;')
+# def escape_html(s):
+#     return s.replace('&', '&amp;').replace('>', '&gt;').replace('<', '&lt;').replace('"', '&quot;')
 
 
 ### ROT13 ###
@@ -110,8 +111,8 @@ def make_salt():
 def make_pw_hash(name, pw, salt = None):
     if not salt:
         salt = make_salt()
-    h = hashlib.sha256(name + pw + salt).hexdigest()
-    return [h, salt]
+    hashbrowns = hashlib.sha256(name + pw + salt).hexdigest()
+    return [hashbrowns, salt]
 
 def valid_pw(name, pw, h):
     salt = h[1]

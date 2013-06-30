@@ -1,17 +1,19 @@
 import os
 import webapp2
 import jinja2
+import json
 
+from time import strftime
 from google.appengine.ext import db
 
 import funcs
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
-                               autoescape = False)
+                               autoescape = True)
 
-def escape(somestring):
-	return funcs.escape_html(somestring)
+# def escape(somestring):
+# 	return funcs.escape_html(somestring)
 
 
 def render_str(template, **params):
@@ -47,7 +49,7 @@ class Birthday(BaseHandler):
 
 		if not (month and day and year):
 			self.render("birthday.html", error = "That doesn't look valid to me, friend.",
-							month = escape(user_month), day = escape(user_day), year = escape(user_year))
+							month = user_month, day = user_day, year = user_year)
 		else:
 			self.redirect("/thanks")
 
@@ -66,7 +68,7 @@ class Rot13(BaseHandler):
 		text = self.request.get('text')
 		if text:
 			rot13 = funcs.rot13(text)
-		self.render('rot13.html', text = escape(rot13))
+		self.render('rot13.html', text = rot13)
 
 
 class User(db.Model):
@@ -120,26 +122,47 @@ class SignUp(BaseHandler):
 			u_id = u.put().id()
 
 			self.response.headers.add_header('Set-Cookie', 'user_id=%s|%s; Path=/' % (u_id, salted_password[0]))
-			self.redirect('/welcome')
+			self.redirect('/blog/welcome')
 
 
+class Login(BaseHandler):		
+	def get(self):
+		self.render('login.html')
 
-			
+	def post(self):
+		username = self.request.get("username")
+		password = self.request.get("password")
+
+		users = db.GqlQuery("SELECT * FROM User")
+
+		for user in users:
+			if user.username == username:
+				h = [user.password, user.salt]
+				if funcs.valid_pw(username, password, h):
+					self.response.headers.add_header('Set-Cookie', 'user_id=%s|%s; Path=/' % (str(user.key().id()), str(user.password)))
+					self.redirect('/blog/welcome')
+		self.render('login.html', error='Login invalid')
+
+
+class Logout(BaseHandler):
+	def get(self):
+		self.response.headers.add_header('Set-Cookie', 'user_id=; Path=/')
+		self.redirect('/blog/signup')
 
 
 class Welcome(BaseHandler):
 	def get(self):
 		user_id_cookie = self.request.cookies.get('user_id').split('|')
 		user_id = user_id_cookie[0]
-		hashbrowns = user_id_cookie[1]
+		hashbrowns = user_id_cookie[-1]
 
-		u = User.get_by_id(int(user_id))
-
-		if u:
-			if u.password == hashbrowns:
-				self.write("Welcome, %s!" % u.username)
+		if user_id:
+			u = User.get_by_id(int(user_id))
+			if u:
+				if u.password == hashbrowns:
+					self.write("Welcome, %s!" % u.username)
 		else:
-			self.redirect('/signup')
+			self.redirect('/blog/signup')
 
 
 class Blog(db.Model):
@@ -153,6 +176,27 @@ class BlogFront(BaseHandler):
 	def get(self):
 		blogs = db.GqlQuery("SELECT	 * 	FROM Blog ORDER BY created DESC")
 		self.render("blogfront.html", blogs=blogs)
+
+
+class BlogFrontJSON(BaseHandler):
+	def get(self):
+		self.response.headers['Content-Type'] = 'application/json'
+
+		blogs = db.GqlQuery("SELECT * FROM Blog ORDER BY created DESC")
+		blog_list = []
+		
+		for blog in blogs:
+			subject = blog.subject
+			content = blog.content
+			created = blog.created.strftime("%a, %d %b %Y")
+			last_modified = blog.last_modified.strftime("%a, %d %b %Y")
+			p = {"subject": subject,
+			 	 "content": content,
+			 	 "created": created,
+			 	 "last_modified": last_modified}
+			blog_list.append(p)
+		j = json.dumps(blog_list)
+		self.write(j)
 
 
 class NewPost(BaseHandler):
@@ -182,15 +226,38 @@ class Permalink(BaseHandler):
 		self.render("blogfront.html", blogs=[s])
 
 
+class PermalinkJSON(BaseHandler):
+	def get(self, blog_id):
+		self.response.headers['Content-Type'] = 'application/json'
+
+		s = Blog.get_by_id(int(blog_id))
+
+		subject = s.subject
+		content = s.content
+		created = s.created.strftime("%a, %d %b %Y")
+		last_modified = s.last_modified.strftime("%a, %d %b %Y")
+
+		p = {"subject": subject,
+			 "content": content,
+			 "created": created,
+			 "last_modified": last_modified}
+		j = json.dumps(p)
+		self.write(j)
+		
+
 
 application = webapp2.WSGIApplication([
 	('/', MainPage),
-	('/birthday', Birthday),
-	('/thanks', Thanks),
-	('/rot13', Rot13),
-	('/signup', SignUp),
-	('/welcome', Welcome),
-	('/blog', BlogFront),
-	('/blog/newpost', NewPost),
-	('/blog/(\d+)', Permalink)
+	('/birthday[/]?', Birthday),
+	('/thanks[/]?', Thanks),
+	('/rot13[/]?', Rot13),
+	('/blog/signup[/]?', SignUp),
+	('/blog/login[/]?', Login),
+	('/blog/logout[/]?', Logout),
+	('/blog/welcome[/]?', Welcome),
+	('/blog[/]?', BlogFront),
+	('/blog/.json', BlogFrontJSON),
+	('/blog/newpost[/]?', NewPost),
+	('/blog/(\d+)[/]?', Permalink),
+	('/blog/(\d+).json', PermalinkJSON)
 ], debug=True)
