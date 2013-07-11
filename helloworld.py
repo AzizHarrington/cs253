@@ -2,11 +2,12 @@ import os
 import webapp2
 import jinja2
 import json
+import funcs
+import logging
 
 from time import strftime
+from google.appengine.api import memcache
 from google.appengine.ext import db
-
-import funcs
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
@@ -27,6 +28,16 @@ class BaseHandler(webapp2.RequestHandler):
 
 	def write(self, *a, **kw):
 		self.response.out.write(*a, **kw)
+
+	#def initialize(self, *a, **kw):
+	# 	webapp2.RequestHandler.initialize(self, *a, **kw)
+	# 	uid = self.read_secure_cookie('user_id')
+	# 	self.user = uid and User.by_id(int(uid))
+
+	# 	if self.request.url.endswith('.json'):
+	# 		self.format = 'json'
+	# 	else:
+	# 		self.format = 'html'
 
 
 class MainPage(BaseHandler):
@@ -171,18 +182,32 @@ class Blog(db.Model):
 	created = db.DateTimeProperty(auto_now_add = True)
 	last_modified = db.DateTimeProperty(auto_now = True)
 
+	def render(self):
+		self._render_text = self.content.replace('\n', '<br>')
+		return render_str("post.html", p = self)
+
+def top_blogs(update = False):
+	key = 'top'
+	blogs = memcache.get(key)
+	if blogs is None or update:
+		logging.error("DB QUERY")
+		blogs = db.GqlQuery("SELECT * FROM Blog ORDER BY created DESC")
+		#prevent the running of multiple queries by storing in list
+		blogs = list(blogs)
+		memcache.set(key, blogs)
+	return blogs
 
 class BlogFront(BaseHandler):
 	def get(self):
-		blogs = db.GqlQuery("SELECT	 * 	FROM Blog ORDER BY created DESC")
-		self.render("blogfront.html", blogs=blogs)
+		blogs = top_blogs()
+		self.render("front.html", blogs=blogs)
 
 
 class BlogFrontJSON(BaseHandler):
 	def get(self):
 		self.response.headers['Content-Type'] = 'application/json'
 
-		blogs = db.GqlQuery("SELECT * FROM Blog ORDER BY created DESC")
+		blogs = top_blogs()
 		blog_list = []
 		
 		for blog in blogs:
@@ -204,7 +229,7 @@ class NewPost(BaseHandler):
 		self.render("newpost.html", subject=subject, content=content, error=error)
 
 	def get(self):
-		self.render_front()
+		return self.render_front()
 
 	def post(self):
 		subject = self.request.get("subject")
@@ -215,6 +240,7 @@ class NewPost(BaseHandler):
 			b.put()
 			b_key = b.put() # Key('BlogPost', id)
 
+			top_blogs(True)
 			self.redirect("/blog/%d" % b_key.id())
 		else:
 			error = "You need both a subject and content!"
@@ -223,7 +249,7 @@ class NewPost(BaseHandler):
 class Permalink(BaseHandler):
 	def get(self, blog_id):
 		s = Blog.get_by_id(int(blog_id))
-		self.render("blogfront.html", blogs=[s])
+		self.render("permalink.html", blog=s)
 
 
 class PermalinkJSON(BaseHandler):

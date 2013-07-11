@@ -1,3 +1,5 @@
-This is the class project for Udacity's 253 Web Development course.
+Class project for Udacity's Intro to Web Application Engineering
+
+Building blog with Google App Engine and Python
 
 
