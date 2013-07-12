@@ -4,7 +4,7 @@ import jinja2
 import json
 import funcs
 import logging
-
+from datetime import datetime
 from time import strftime
 from google.appengine.api import memcache
 from google.appengine.ext import db
@@ -191,23 +191,35 @@ def top_blogs(update = False):
 	blogs = memcache.get(key)
 	if blogs is None or update:
 		logging.error("DB QUERY")
+		time_now = datetime.now()
 		blogs = db.GqlQuery("SELECT * FROM Blog ORDER BY created DESC")
 		#prevent the running of multiple queries by storing in list
 		blogs = list(blogs)
+		blogs = (blogs, time_now)
 		memcache.set(key, blogs)
 	return blogs
 
+class FlushCache(BaseHandler):
+	def get(self):
+		memcache.flush_all()
+		self.redirect('/blog')
+
+
 class BlogFront(BaseHandler):
 	def get(self):
-		blogs = top_blogs()
-		self.render("front.html", blogs=blogs)
+		blogs = top_blogs()[0]
+		start = top_blogs()[1]
+		end = datetime.now()
+		diff = end - start
+		time_passed = int(round(diff.total_seconds()))
+		self.render("front.html", blogs=blogs, time_passed=time_passed)
 
 
 class BlogFrontJSON(BaseHandler):
 	def get(self):
 		self.response.headers['Content-Type'] = 'application/json'
 
-		blogs = top_blogs()
+		blogs = top_blogs()[0]
 		blog_list = []
 		
 		for blog in blogs:
@@ -248,8 +260,14 @@ class NewPost(BaseHandler):
 
 class Permalink(BaseHandler):
 	def get(self, blog_id):
-		s = Blog.get_by_id(int(blog_id))
-		self.render("permalink.html", blog=s)
+		#s = Blog.get_by_id(int(blog_id))
+		blogs = top_blogs()[0]
+		s = blogs[0]
+		start = top_blogs()[1]
+		end = datetime.now()
+		diff = end - start
+		time_passed = int(round(diff.total_seconds()))
+		self.render("permalink.html", blog=s, time_passed=time_passed)
 
 
 class PermalinkJSON(BaseHandler):
@@ -274,16 +292,17 @@ class PermalinkJSON(BaseHandler):
 
 application = webapp2.WSGIApplication([
 	('/', MainPage),
-	('/birthday[/]?', Birthday),
-	('/thanks[/]?', Thanks),
-	('/rot13[/]?', Rot13),
-	('/blog/signup[/]?', SignUp),
-	('/blog/login[/]?', Login),
-	('/blog/logout[/]?', Logout),
-	('/blog/welcome[/]?', Welcome),
-	('/blog[/]?', BlogFront),
+	('/birthday/?', Birthday),
+	('/thanks/?', Thanks),
+	('/rot13/?', Rot13),
+	('/blog/signup/?', SignUp),
+	('/blog/login/?', Login),
+	('/blog/logout/?', Logout),
+	('/blog/welcome/?', Welcome),
+	('/blog/?', BlogFront),
 	('/blog/.json', BlogFrontJSON),
-	('/blog/newpost[/]?', NewPost),
-	('/blog/(\d+)[/]?', Permalink),
-	('/blog/(\d+).json', PermalinkJSON)
+	('/blog/newpost/?', NewPost),
+	('/blog/(\d+)/?', Permalink),
+	('/blog/(\d+).json', PermalinkJSON),
+	('/blog/flush/?', FlushCache),
 ], debug=True)
