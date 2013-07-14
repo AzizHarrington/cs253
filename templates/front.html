@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+	<ul>
+		<li><a href="/blog/newpost">Newpost</a></li>
+		<li><a href="/">Front</a></li>
+	</ul>
 
 	{% for blog in blogs %}
 		{{ blog.render() | safe }}

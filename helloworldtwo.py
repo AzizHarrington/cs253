@@ -21,25 +21,6 @@ def render_str(template, **params):
 	t = jinja_env.get_template(template)
 	return t.render(params)
 
-# for user in users:
-# 			if user.username == username:
-# 				h = [user.password, user.salt]
-# 				if funcs.valid_pw(username, password, h):
-# 					self.response.headers.add_header('Set-Cookie', 'user_id=%s|%s; Path=/' % (str(user.key().id()), str(user.password)))
-# 					self.redirect('/blog/welcome')	
-
-# def get(self):
-# 		user_id_cookie = self.request.cookies.get('user_id').split('|')
-# 		user_id = user_id_cookie[0]
-# 		hashbrowns = user_id_cookie[-1]
-
-# 		if user_id:
-# 			u = User.get_by_id(int(user_id))
-# 			if u:
-# 				if u.password == hashbrowns:
-# 					self.render("welcome.html", user = u.username)
-# 		else:
-# 			self.redirect('/blog/signup')
 
 class BaseHandler(webapp2.RequestHandler):
 	def render(self, template, **kw):
@@ -48,24 +29,15 @@ class BaseHandler(webapp2.RequestHandler):
 	def write(self, *a, **kw):
 		self.response.out.write(*a, **kw)
 
-	def read_secure_cookie(self, name):
-		cookie_val = self.request.cookies.get(name)
-		return cookie_val and self.check_secure_val(cookie_val)
-
-	def check_secure_val(self, secure_val):
-		val = secure_val.split("|")
-		user_id = val[0]
-		hashbrowns = val[-1]
-		if user_id:
-			u = User.get_by_id(int(user_id))
-			if u:
-				if u.password == hashbrowns:
-					return user_id
-
 	def initialize(self, *a, **kw):
 		webapp2.RequestHandler.initialize(self, *a, **kw)
 		uid = self.read_secure_cookie('user_id')
-		self.user = uid and User.get_by_id(int(uid))
+		self.user = uid and User.by_id(int(uid))
+
+		if self.request.url.endswith('.json'):
+			self.format = 'json'
+		else:
+			self.format = 'html'
 
 
 class MainPage(BaseHandler):
@@ -180,13 +152,13 @@ class Login(BaseHandler):
 				if funcs.valid_pw(username, password, h):
 					self.response.headers.add_header('Set-Cookie', 'user_id=%s|%s; Path=/' % (str(user.key().id()), str(user.password)))
 					self.redirect('/blog/welcome')
-		self.render('login.html', error='Login invalid.')
+		self.render('login.html', error='Login invalid')
 
 
 class Logout(BaseHandler):
 	def get(self):
 		self.response.headers.add_header('Set-Cookie', 'user_id=; Path=/')
-		self.redirect('/blog')
+		self.redirect('/blog/signup')
 
 
 class Welcome(BaseHandler):
@@ -199,7 +171,7 @@ class Welcome(BaseHandler):
 			u = User.get_by_id(int(user_id))
 			if u:
 				if u.password == hashbrowns:
-					self.render("welcome.html", user = u.username)
+					self.write("Welcome, %s!" % u.username)
 		else:
 			self.redirect('/blog/signup')
 
@@ -240,7 +212,7 @@ class BlogFront(BaseHandler):
 		end = datetime.now()
 		diff = end - start
 		time_passed = int(round(diff.total_seconds()))
-		self.render("front.html", blogs=blogs, time_passed=time_passed, user=self.user)
+		self.render("front.html", blogs=blogs, time_passed=time_passed)
 
 
 class BlogFrontJSON(BaseHandler):
@@ -269,15 +241,9 @@ class NewPost(BaseHandler):
 		self.render("newpost.html", subject=subject, content=content, error=error)
 
 	def get(self):
-		if self.user:
-			self.render_front()
-		else:
-			self.redirect("/blog/login")
+		return self.render_front()
 
 	def post(self):
-		if not self.user:
-			self.redirect('/blog')
-
 		subject = self.request.get("subject")
 		content = self.request.get("content")
 
