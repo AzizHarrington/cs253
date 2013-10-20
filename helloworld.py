@@ -13,33 +13,11 @@ template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
                                autoescape = True)
 
-# def escape(somestring):
-# 	return funcs.escape_html(somestring)
-
 
 def render_str(template, **params):
 	t = jinja_env.get_template(template)
 	return t.render(params)
 
-# for user in users:
-# 			if user.username == username:
-# 				h = [user.password, user.salt]
-# 				if funcs.valid_pw(username, password, h):
-# 					self.response.headers.add_header('Set-Cookie', 'user_id=%s|%s; Path=/' % (str(user.key().id()), str(user.password)))
-# 					self.redirect('/blog/welcome')	
-
-# def get(self):
-# 		user_id_cookie = self.request.cookies.get('user_id').split('|')
-# 		user_id = user_id_cookie[0]
-# 		hashbrowns = user_id_cookie[-1]
-
-# 		if user_id:
-# 			u = User.get_by_id(int(user_id))
-# 			if u:
-# 				if u.password == hashbrowns:
-# 					self.render("welcome.html", user = u.username)
-# 		else:
-# 			self.redirect('/blog/signup')
 
 class BaseHandler(webapp2.RequestHandler):
 	def render(self, template, **kw):
